@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre English | AI英訳・解説</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif;color:#262626;background:#fff}*{box-sizing:border-box}body{margin:0;padding:12px}.wrap{max-width:760px;margin:auto}.panel{border:1px solid #e7e5e4;border-radius:14px;padding:17px;background:#fff}h2{font-size:17px;margin:0 0 5px}.sub{color:#777;font-size:12px;margin:0 0 15px}.field{width:100%;min-height:180px;resize:vertical;font:14px/1.8 inherit;line-height:1.8;border:1px solid #d6d3d1;border-radius:9px;padding:12px;color:#262626}button{background:#222;color:#fff;border:0;border-radius:9px;padding:12px 20px;font-weight:700;font-size:14px;cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}.actions{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}.hint,.status{font-size:12px;color:#78716c}.status[role=alert]{color:#b91c1c}.output{display:none;margin-top:20px;border-top:1px solid #eee;padding-top:15px}.output.visible{display:block}.output pre{white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.85 inherit;line-height:1.85;margin:0}.outhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}.outhead button{padding:8px 12px;background:#f1f0ed;color:#222}.note{font-size:12px;color:#777;margin-top:14px}
+</style>
+</head>
+<body><main class="wrap"><section class="panel">
+<h2>日本語で作文してみましょう</h2>
+<p class="sub">テーマ：学生生活｜AIが自然な英語訳と表現の解説を作成します。</p>
+<label for="essay" class="sub">日本語作文</label>
+<textarea id="essay" class="field" maxlength="4000" placeholder="ここに日本語作文を入力してください。"></textarea>
+<div class="actions"><button id="submit">AIで英訳・解説する</button><span id="status" class="status" aria-live="polite"></span></div>
+<section id="output" class="output" aria-live="polite"><div class="outhead"><strong>🇬🇧 英語訳・📝 解説ポイント</strong><button id="copy">結果をコピー</button></div><pre id="answer"></pre></section>
+<p class="note">入力した作文は英訳処理のためサーバーとOpenAI APIへ送信されます。個人情報は入力しないでください。</p>
+</section></main>
+<script>
+// IMPORTANT: Replace with your n8n Production Webhook URL, never an OpenAI API key.
+const WEBHOOK_URL = 'https://YOUR-N8N-DOMAIN/webhook/libre-english-essay';
+const essay = document.getElementById('essay');
+const button = document.getElementById('submit');
+const status = document.getElementById('status');
+const output = document.getElementById('output');
+const answer = document.getElementById('answer');
+button.addEventListener('click', async () => {
+  const japanese = essay.value.trim();
+  if (!japanese) { status.textContent = '日本語作文を入力してください。'; return; }
+  if (WEBHOOK_URL.includes('YOUR-N8N-DOMAIN')) { status.textContent = '管理者向け：HTML内のWEBHOOK_URLを設定してください。'; return; }
+  button.disabled = true; output.classList.remove('visible');status.removeAttribute('role');status.textContent='英訳を生成しています…';
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let response;
+    try { response = await fetch(WEBHOOK_URL, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({essay:japanese}),signal:controller.signal}); }
+    finally { clearTimeout(timeout); }
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data=await response.json();
+    if (!data || typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('予期しない応答形式');
+    answer.textContent=data.answer;output.classList.add('visible');status.textContent='完了しました。';
+  } catch (err) {
+    status.setAttribute('role','alert');status.textContent = err.name==='AbortError' ? '時間がかかっています。少し後で再度お試しください。' : '生成に失敗しました。設定・通信状況を確認してください。';
+    console.error('Libre API request failed',err);
+  } finally {button.disabled=false;}
+});
+document.getElementById('copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(answer.textContent);status.textContent='結果をコピーしました。';}catch(_){status.textContent='コピーが制限されています。結果を選択してコピーしてください。';}});
+</script></body></html>
